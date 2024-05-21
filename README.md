@@ -13,3 +13,9 @@ python3 -m venv osintaiEnviroment
 source osintaiEnvironment/bin/activate
 
 pip3 install -U requirements.txt 
+
+install Ollama
+
+Download Gemma
+
+python3 crawlerai3_ollama-2.py
