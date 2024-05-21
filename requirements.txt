@@ -1,4 +1,2 @@
-google==3.0.0
-requests==2.31.0
-beautifulsoup==4.12.3
-requests==2.31.0
+beautifulsoup4>=4.9.3
+requests>=2.25.1
