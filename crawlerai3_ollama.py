@@ -1,7 +1,9 @@
-import requests
-from bs4 import BeautifulSoup
-import time
+import os
 import random
+import time
+import subprocess
+from bs4 import BeautifulSoup
+import requests
 
 class WebCrawler:
     def __init__(self, seed_url, max_depth, max_urls, user_agents_file):
@@ -51,8 +53,8 @@ class WebCrawler:
                     crawled_urls.append(current_url)
                     print(f"Crawled: {current_url}")
 
-                    # Interact with Ollama Gemma API
-                    self.send_to_ollama_gemma(current_url, html_content)
+                    # Interact with Ollama Gemma locally
+                    self.analyze_with_gemma(current_url, html_content)
 
             except Exception as e:
                 print(f"Failed to fetch {current_url}: {e}")
@@ -61,22 +63,29 @@ class WebCrawler:
 
         return crawled_urls
 
-    def send_to_ollama_gemma(self, url, html_content):
-        api_endpoint = "https://api.ollama.com/gemma/analyze"
-        payload = {
-            'url': url,
-            'content': html_content
-        }
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer YOUR_OLLAMA_GEMMA_API_KEY'
-        }
+    def analyze_with_gemma(self, url, html_content):
+        # Save the HTML content to a temporary file
+        temp_html_file = "temp_content.html"
+        with open(temp_html_file, 'w', encoding='utf-8') as file:
+            file.write(html_content)
 
-        response = requests.post(api_endpoint, json=payload, headers=headers)
-        if response.status_code == 200:
-            print(f"Sent to Ollama Gemma: {url}")
-        else:
-            print(f"Failed to send to Ollama Gemma: {response.status_code} - {response.text}")
+        # Run the Gemma model on the content
+        try:
+            result = subprocess.run(
+                ["ollama", "run", "gemma:7b", "--input", temp_html_file],
+                capture_output=True,
+                text=True
+            )
+
+            if result.returncode == 0:
+                print(f"Analyzed with Gemma: {url}")
+                print(result.stdout)
+            else:
+                print(f"Failed to analyze with Gemma: {result.stderr}")
+
+        finally:
+            # Clean up the temporary file
+            os.remove(temp_html_file)
 
 if __name__ == "__main__":
     seed_url = "https://example.com"
