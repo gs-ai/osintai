@@ -8,7 +8,7 @@ mkdir osintai
 
 cd/ ~/osintai
 
-python3 -m venv osintaiEnviroment
+python3 -m venv osintaiEnvironment
 
 source osintaiEnvironment/bin/activate
 
