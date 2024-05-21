@@ -1,50 +1,89 @@
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+import time
+import random
 
-def crawl_and_search_keyword(start_url, keyword, max_depth=3):
-    visited = set()  # Set to keep track of visited URLs
-    to_visit = [(start_url, 0)]  # Queue of URLs to visit along with their depth
-    found_keyword_urls = []  # List to store URLs where the keyword is found
+class WebCrawler:
+    def __init__(self, seed_url, max_depth, max_urls, user_agents_file):
+        self.seed_url = seed_url
+        self.max_depth = max_depth
+        self.max_urls = max_urls
+        self.user_agents = self.load_user_agents(user_agents_file)
+        self.visited_urls = set()
 
-    while to_visit:
-        url, depth = to_visit.pop(0)  # Get the next URL and its depth
+    def load_user_agents(self, user_agents_file):
+        with open(user_agents_file, 'r') as file:
+            user_agents = [line.strip() for line in file]
+        return user_agents
 
-        if url not in visited and depth <= max_depth:
+    def get_random_user_agent(self):
+        return random.choice(self.user_agents)
+
+    def fetch_url(self, url):
+        headers = {'User-Agent': self.get_random_user_agent()}
+        response = requests.get(url, headers=headers)
+        return response
+
+    def parse_links(self, html_content):
+        soup = BeautifulSoup(html_content, 'html.parser')
+        links = [a['href'] for a in soup.find_all('a', href=True)]
+        return links
+
+    def crawl(self):
+        urls_to_visit = [(self.seed_url, 0)]
+        crawled_urls = []
+
+        while urls_to_visit and len(self.visited_urls) < self.max_urls:
+            current_url, depth = urls_to_visit.pop(0)
+            if current_url in self.visited_urls or depth > self.max_depth:
+                continue
+
             try:
-                response = requests.get(url)
-                response.raise_for_status()
-                visited.add(url)  # Mark this URL as visited
+                response = self.fetch_url(current_url)
+                if response.status_code == 200:
+                    html_content = response.text
+                    links = self.parse_links(html_content)
+                    for link in links:
+                        if link not in self.visited_urls:
+                            urls_to_visit.append((link, depth + 1))
 
-                # Parse the content with BeautifulSoup
-                soup = BeautifulSoup(response.content, 'html.parser')
+                    self.visited_urls.add(current_url)
+                    crawled_urls.append(current_url)
+                    print(f"Crawled: {current_url}")
 
-                # Check if the keyword is in the page text
-                if keyword.lower() in soup.get_text().lower():
-                    found_keyword_urls.append(url)
-                    print(f"Keyword found at: {url}")
+                    # Interact with Ollama Gemma API
+                    self.send_to_ollama_gemma(current_url, html_content)
 
-                # Find all links and add them to the to_visit list
-                for link in soup.find_all('a', href=True):
-                    absolute_link = urljoin(url, link['href'])
-                    if absolute_link not in visited:
-                        to_visit.append((absolute_link, depth + 1))
+            except Exception as e:
+                print(f"Failed to fetch {current_url}: {e}")
 
-            except requests.exceptions.RequestException as e:
-                print(f"Error crawling {url}: {e}")
+            time.sleep(random.randint(1, 3))
 
-    # Write the results to a file
-    filename = f"{keyword.replace(' ', '_')}_results.txt"
-    with open(filename, 'w') as file:
-        for url in found_keyword_urls:
-            file.write(url + '\n')
-    
-    print(f"\nResults written to {filename}")
-    return found_keyword_urls
+        return crawled_urls
 
-# User input for the URL and keyword
-user_input_url = input("Enter the URL to crawl: ")
-user_input_keyword = input("Enter the keyword to search for: ")
+    def send_to_ollama_gemma(self, url, html_content):
+        api_endpoint = "https://api.ollama.com/gemma/analyze"
+        payload = {
+            'url': url,
+            'content': html_content
+        }
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer YOUR_OLLAMA_GEMMA_API_KEY'
+        }
 
-# Example usage
-found_urls = crawl_and_search_keyword(user_input_url, user_input_keyword, max_depth=3)
+        response = requests.post(api_endpoint, json=payload, headers=headers)
+        if response.status_code == 200:
+            print(f"Sent to Ollama Gemma: {url}")
+        else:
+            print(f"Failed to send to Ollama Gemma: {response.status_code} - {response.text}")
+
+if __name__ == "__main__":
+    seed_url = "https://example.com"
+    max_depth = 2
+    max_urls = 10
+    user_agents_file = "user_agents.txt"
+
+    crawler = WebCrawler(seed_url, max_depth, max_urls, user_agents_file)
+    crawled_urls = crawler.crawl()
+    print(f"Crawled URLs: {crawled_urls}")
