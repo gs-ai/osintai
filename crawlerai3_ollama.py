@@ -6,12 +6,13 @@ from bs4 import BeautifulSoup
 import requests
 
 class WebCrawler:
-    def __init__(self, seed_url, max_depth, max_urls, user_agents_file):
+    def __init__(self, seed_url, max_depth, max_urls, user_agents_file, search_terms=None):
         self.seed_url = seed_url
         self.max_depth = max_depth
         self.max_urls = max_urls
         self.user_agents = self.load_user_agents(user_agents_file)
         self.visited_urls = set()
+        self.search_terms = search_terms
 
     def load_user_agents(self, user_agents_file):
         with open(user_agents_file, 'r') as file:
@@ -30,6 +31,11 @@ class WebCrawler:
         soup = BeautifulSoup(html_content, 'html.parser')
         links = [a['href'] for a in soup.find_all('a', href=True)]
         return links
+
+    def search_in_content(self, html_content):
+        if self.search_terms:
+            return any(term.lower() in html_content.lower() for term in self.search_terms)
+        return False
 
     def crawl(self):
         urls_to_visit = [(self.seed_url, 0)]
@@ -52,6 +58,9 @@ class WebCrawler:
                     self.visited_urls.add(current_url)
                     crawled_urls.append(current_url)
                     print(f"Crawled: {current_url}")
+
+                    if self.search_in_content(html_content):
+                        print(f"Search term found in: {current_url}")
 
                     # Interact with Ollama Gemma locally
                     self.analyze_with_gemma(current_url, html_content)
@@ -88,11 +97,14 @@ class WebCrawler:
             os.remove(temp_html_file)
 
 if __name__ == "__main__":
-    seed_url = "https://example.com"
-    max_depth = 2
-    max_urls = 10
+    seed_url = input("Enter the seed URL to start crawling: ")
+    max_depth = int(input("Enter the maximum depth for crawling: "))
+    max_urls = int(input("Enter the maximum number of URLs to crawl: "))
     user_agents_file = "user_agents.txt"
+    search_terms = input("Enter search terms (comma-separated) or press enter to skip: ").split(',')
 
-    crawler = WebCrawler(seed_url, max_depth, max_urls, user_agents_file)
+    search_terms = [term.strip() for term in search_terms if term.strip()]
+
+    crawler = WebCrawler(seed_url, max_depth, max_urls, user_agents_file, search_terms)
     crawled_urls = crawler.crawl()
     print(f"Crawled URLs: {crawled_urls}")
